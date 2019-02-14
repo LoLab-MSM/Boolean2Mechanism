@@ -1,18 +1,12 @@
 
 from pysb.core import MonomerPattern, ComplexPattern, RuleExpression, ReactionPattern, ANY, WILD
-from pysb.integrate import Solver
 from pysb.builder import Builder
 from pysb.export.pysb_flat import PysbFlatExporter
-import numpy as np
 from copy import deepcopy
 from itertools import combinations, product
 import re
 import csv
-import random
-from math import *
 from collections import defaultdict
-import datetime
-from pysb import ComponentSet
 
 
 class M_Node:
@@ -401,11 +395,18 @@ def importLabels(labels, library, nodes):
 
                 if label_info:
                     for lab in each[1:]:
-                        nodes[each[0].strip()].labels.append(lab.strip())
+                        if lab.strip() != 'all':
+                            nodes[each[0].strip()].labels.append(lab.strip())
 
                         # todo: add exception here
-                        if lab.strip() not in library:
+                        if lab.strip() not in library and lab.strip() != 'all':
                             print lab, 'not in library'
+
+                        if lab.strip() == 'all':
+                            for item in library:
+                                nodes[each[0].strip()].labels.append(item)
+                        # print nodes[each[0].strip()].labels
+                        # quit()
 
                 if initial:
                     nodes[each[0].strip()].initial = each[1]
@@ -443,6 +444,7 @@ class MotifBuilder:
         self.library = library
         self.hidden = hidden
         self.max_depth = max_depth
+        self.count = 0
         self.master = deepcopy(self.nodes)
         self._build_motifs()
 
@@ -465,13 +467,15 @@ class MotifBuilder:
         # build lists of reactions for target 'input', affecting 'output', target 'mutual', and affecting 'mutual' nodes
         for target_label in self.master[target_node].labels:
             for mol in self.library[target_label]:
-                if mol.direction == 'input':
+                if mol.direction == 'input' and\
+                        [target_node, mol.reaction, mol.molecule, mol.reactants, 'input'] not in targ_list:
                     targ_list.append([target_node, mol.reaction, mol.molecule, mol.reactants, 'input'])
 
         for aff_node in affecting_nodes:
             for aff_label in self.master[aff_node].labels:
                 for mol in self.library[aff_label]:
-                    if mol.direction == 'output':
+                    if mol.direction == 'output' and\
+                            [aff_node, mol.reaction, mol.molecule, mol.targets, 'output'] not in aff_list:
                         aff_list.append([aff_node, mol.reaction, mol.molecule, mol.targets, 'output'])
 
         # group reactions - target 'input', affecting 'output'
@@ -495,12 +499,34 @@ class MotifBuilder:
                 aff_groups.append(list(combos))
 
         # match input and output reactions
+
         for t_group in targ_groups:
+
+            t_group_o = deepcopy(t_group)
+
+            reaction_name = t_group[0][1]
+            t2 = []
+            t3 = []
+
+            for t in t_group:
+                t2.append(t[2])
+                t3.append(t[3])
+
+            for i, t in enumerate(t3):
+                for j, elem in enumerate(t):
+                    if elem.split('_')[-1].isdigit():
+                        t3[i][j] = t3[i][j].rsplit('_')[0]
+
+            t2 = sorted(t2)
+            for i, t in enumerate(t3):
+                t3[i] = sorted(t)
+
             for a_group in aff_groups:
+
+                a_group_o = deepcopy(a_group)
                 match = True
 
                 # match reaction names
-                reaction_name = t_group[0][1]
                 for t in t_group:
                     if t[1] != reaction_name:
                         match = False
@@ -508,53 +534,62 @@ class MotifBuilder:
                     if a[1] != reaction_name:
                         match = False
 
-                # match reactants and targets
-                if match:
-                    for t in t_group:
-                        t3 = deepcopy(t[3])
-                        if len(t3) != len(a_group):
-                            match = False
-                        a2 = []
-                        for a in a_group:
-                            a2.append(a[2])
-                        if set(t3) != set(a2):
-                            match = False
-                    for a in a_group:
-                        a3 = deepcopy(a[3])
-                        if len(a3) != len(t_group):
-                            match = False
-                        t2 = []
-                        for t in t_group:
-                            t2.append(t[2])
-                        if set(a3) != set(t2):
-                            match = False
+                a2 = []
+                a3 = []
+                for a in a_group:
+                    a2.append(a[2])
+                    a3.append(a[3])
+
+                for i, a in enumerate(a3):
+                    for j, elem in enumerate(a):
+                        if elem.split('_')[-1].isdigit():
+                            a3[i][j] = a3[i][j].rsplit('_')[0]
+
+                a2 = sorted(a2)
+                for i, a in enumerate(a3):
+                    a3[i] = sorted(a)
+                    if a3[i] != t2:
+                        match = False
+                for i, t in enumerate(t3):
+                    if t != a2:
+                        match = False
 
                 if match:
-                    interact = [[], [], [], [], 'd', reaction_name]
-                    for t in t_group:
+                    interact = [[], [], [], [], reaction_name]
+                    for t in t_group_o:
                         interact[1].append(t[0])
-                        interact[3].append(t[2])
-                    for a in a_group:
+                    for a in a_group_o:
                         interact[0].append(a[0])
-                        interact[2].append(a[2])
+
+                    interact[2] = deepcopy(t_group_o[0][3])
+                    interact[3] = deepcopy(a_group_o[0][3])
+
                     interacts.append(interact)
+                    # print interact
+        # # add instructions and partners
+        # for i, each in enumerate(interacts):
+        #     interacts[i].extend([[], []])
+        #     for item in self.library[each[3][0]]:
+        #         if item.reaction == each[5]:
+        #             for j, every in enumerate(item.instructions):
+        #                 if every not in interacts[i][6]:
+        #                     interacts[i][6].append(every)
+        #             for j, every in enumerate(item.partners):
+        #                 if every not in interacts[i][7]:
+        #                     interacts[i][7].append(every)
 
-        # add instructions and partners
-        for i, each in enumerate(interacts):
-            interacts[i].extend([[], []])
-            for item in self.library[each[3][0]]:
-                if item.reaction == each[5]:
-                    for j, every in enumerate(item.instructions):
-                        if every not in interacts[i][6]:
-                            interacts[i][6].append(every)
-                    for j, every in enumerate(item.partners):
-                        if every not in interacts[i][7]:
-                            interacts[i][7].append(every)
-
+        # print interacts
+        # quit()
         return interacts
 
     def _findMotifs(self, targs, motif_build, interacts, in_nodes, mots):
 
+        # print self.count
+        print
+        for each in motif_build:
+            print each
+
+        self.count += 1
         # todo: apply filters to partial motifs
 
         # for each in motif_build:
@@ -566,12 +601,12 @@ class MotifBuilder:
 
         def max_path_finder(node_i, node_paths, m2, connects):
 
-            for j in connects[node_i]:
-                if j != 0:
-                    if j not in node_paths:
+            for k in connects[node_i]:
+                if k != 0:
+                    if k not in node_paths:
                         npa = deepcopy(node_paths)
-                        npa.append(j)
-                        max_path_finder(j, npa, m2, connects)
+                        npa.append(k)
+                        max_path_finder(k, npa, m2, connects)
                 else:
                     if len(node_paths) > m2[0]:
                         m2[0] = len(node_paths)
@@ -708,9 +743,8 @@ class MotifBuilder:
         coverage = False
         node_coverage = set()
         for inter in working_motif[1:]:
-            if inter[4] == 'd':
-                for species in inter[0]:
-                    node_coverage.add(species)
+            for species in inter[0]:
+                node_coverage.add(species)
         if set.intersection(node_coverage, set(deepcopy(in_nodes))) == set(deepcopy(in_nodes)):
             coverage = True
 
@@ -722,16 +756,16 @@ class MotifBuilder:
         # complex coverage check; checks if complexes are complete motifs
 
         complex_coverage = True
-        for inter1 in working_motif[1:]:
-            if len(inter1[0]) > 1:
-                current_inter = False
-                for inter2 in working_motif[1:]:
-                    if set(inter2[0] + inter2[1]) == set(inter1[0]):
-                        current_inter = True
-                if not current_inter:
-                    complex_coverage = False
-        if relax:
-            complex_coverage = True
+        # for inter1 in working_motif[1:]:
+        #     if len(inter1[0]) > 1:
+        #         current_inter = False
+        #         for inter2 in working_motif[1:]:
+        #             if set(inter2[0] + inter2[1]) == set(inter1[0]):
+        #                 current_inter = True
+        #         if not current_inter:
+        #             complex_coverage = False
+        # if relax:
+        #     complex_coverage = True
 
         # =======================================================================
 
@@ -750,6 +784,15 @@ class MotifBuilder:
         #     print
 
         # add motif to motifs or partials
+
+        # print
+        # print depth_g
+        # print path
+        # print reaction
+        # print coverage
+        # print complex_coverage
+        # print
+
         if depth_g and path and reaction and coverage and complex_coverage:
 
             if working_motif not in mots:
@@ -860,32 +903,45 @@ class MotifBuilder:
         return new_interacts
 
     def _build_motifs(self):
+
         for node in self.nodes:
 
+            print node
+
+            self.count = 0
             self.nodes[node].self = self._findSelfInteractions(node)
             nodelist = deepcopy(self.nodes[node].incidentNodes)
             if not nodelist:
-                self.nodes[node].motifs.extend([[0, [[[node], None, None, None, None, None, None, None]]]])
+                self.nodes[node].motifs.extend([[0, [[[node], None, None, None, None]]]])
             else:
-                seed = [[[node], None, None, None, None, None, None, None]]
+                seed = [[[node], None, None, None, None]]
                 interactions = []
                 interactions += self._findInteractions(node, nodelist)
-
+                # quit()
                 if int(self.nodes[node].depth) > 1:  # default: complex
                     for j, thing in enumerate(nodelist):
                         temp_nodelist = deepcopy(nodelist)
                         temp_nodelist.pop(j)
                         interactions += self._findInteractions(thing, temp_nodelist)
 
+                # for each in interactions:
+                #     print 'i', each
+
                 motifs = []
                 interactions = self._filter_interactions(node, interactions)
+                # print node, interactions
                 self._findMotifs(seed, seed, interactions, self.nodes[node].incidentNodes, motifs)
                 if motifs:
-                    scored_motifs = []
-                    for each in motifs:
-                        scored_motifs.append([self._motif_size(each), each])
-                    scored_motifs.sort()
-                    self.nodes[node].motifs.extend(scored_motifs)
+                    # print 'p'
+                    # scored_motifs = []
+                    # for each in motifs:
+                    #     scored_motifs.append([self._motif_size(each), each])
+                    # scored_motifs.sort()
+                    self.nodes[node].motifs.extend(motifs)
+                else:
+                    self.nodes[node].motifs.extend([[[[node], None, None, None, None]]])
+
+            # quit()
 
 
 class Combine_and_Build:
@@ -906,76 +962,83 @@ class Combine_and_Build:
         for node in self.nodes:
             node_list.append(node)
             motif_list.append(self.nodes[node].motifs)
-            score += self.nodes[node].motifs[0][0]
+            # score += self.nodes[node].motifs[0][0]
+
+        print
+        print node_list
+        for each in motif_list:
+            print each
+        print
 
         motif_combos = []
+        # if top == 'all':
+        num_motifs = []
+        for each in motif_list:
+            num_motifs.append(range(len(each)))
 
-        if top == 'all':
-            num_motifs = []
-            for each in motif_list:
-                num_motifs.append(range(len(each)))
-
-            for indices in product(*num_motifs):
-                motif = []
-                for i, each in enumerate(motif_list):
-                    motif.append(each[indices[i]][1])
-                motif_combos.append(motif)
-
-        else:
-            top_list = [[score, [0 for _ in self.nodes]]]
-            for i in range(top-1):
-                top_list.append([1000000+i, []])
-            current_model_list = [[score, [0 for _ in self.nodes]]]
-
-            # todo: this is inefficient
-            # while new potential models are still being generated
-            while current_model_list:
-
-                # a round of bfs
-                new_model_list = []
-                for model in current_model_list:
-                    for i, node in enumerate(model[1]):
-                        if model[1][i]+1 < len(motif_list[i]):
-                            new_model = model[1][:]
-                            new_model[i] += 1
-                            score = 0
-                            for j, each in enumerate(motif_list):
-                                score += each[new_model[j]][0]
-                            if score <= top_list[-1][0] and [score, new_model] not in new_model_list:
-                                new_model_list.append([score, new_model])
-                new_model_list.sort()
-                current_model_list = []
-
-                # add models to top list, sort and filter
-                for each in new_model_list:
-                    if each[0] <= top_list[-1]:
-                        top_list.append(deepcopy(each))
-                        top_list.sort()
-                        top_values = []
-                        for item in top_list:
-                            if item[0] not in top_values:
-                                top_values.append(item[0])
-                        top_values = top_values[:top]
-
-                        new_top_list = []
-                        for i, item in enumerate(top_list):
-                            if item[0] in top_values:
-                                new_top_list.append(deepcopy(item))
-                        top_list = new_top_list
-                        current_model_list.append(deepcopy(each))
-
-            tl2 = []
-            for each in top_list:
-                if each[1]:
-                    tl2.append(each)
-            top_list = tl2
-
-            # find combinations of motifs
-            for each in top_list:
-                motifs = []
-                for i, node in enumerate(node_list):
-                    motifs.append(self.nodes[node].motifs[each[1][i]][1])
-                motif_combos.append(motifs)
+        for indices in product(*num_motifs):
+            print indices
+            motif = []
+            for i, each in enumerate(motif_list):
+                motif.append(each[indices[i]])
+            motif_combos.append(motif)
+        print motif_combos
+        # quit()
+        # else:
+        #     top_list = [[score, [0 for _ in self.nodes]]]
+        #     for i in range(top-1):
+        #         top_list.append([1000000+i, []])
+        #     current_model_list = [[score, [0 for _ in self.nodes]]]
+        #
+        #     # todo: this is inefficient
+        #     # while new potential models are still being generated
+        #     while current_model_list:
+        #
+        #         # a round of bfs
+        #         new_model_list = []
+        #         for model in current_model_list:
+        #             for i, node in enumerate(model[1]):
+        #                 if model[1][i]+1 < len(motif_list[i]):
+        #                     new_model = model[1][:]
+        #                     new_model[i] += 1
+        #                     score = 0
+        #                     for j, each in enumerate(motif_list):
+        #                         score += each[new_model[j]][0]
+        #                     if score <= top_list[-1][0] and [score, new_model] not in new_model_list:
+        #                         new_model_list.append([score, new_model])
+        #         new_model_list.sort()
+        #         current_model_list = []
+        #
+        #         # add models to top list, sort and filter
+        #         for each in new_model_list:
+        #             if each[0] <= top_list[-1]:
+        #                 top_list.append(deepcopy(each))
+        #                 top_list.sort()
+        #                 top_values = []
+        #                 for item in top_list:
+        #                     if item[0] not in top_values:
+        #                         top_values.append(item[0])
+        #                 top_values = top_values[:top]
+        #
+        #                 new_top_list = []
+        #                 for i, item in enumerate(top_list):
+        #                     if item[0] in top_values:
+        #                         new_top_list.append(deepcopy(item))
+        #                 top_list = new_top_list
+        #                 current_model_list.append(deepcopy(each))
+        #
+        #     tl2 = []
+        #     for each in top_list:
+        #         if each[1]:
+        #             tl2.append(each)
+        #     top_list = tl2
+        #
+        #     # find combinations of motifs
+        #     for each in top_list:
+        #         motifs = []
+        #         for i, node in enumerate(node_list):
+        #             motifs.append(self.nodes[node].motifs[each[1][i]][1])
+        #         motif_combos.append(motifs)
 
         # reorder interactions
         for i, each in enumerate(motif_combos):
@@ -1090,12 +1153,12 @@ class ModelBuilder(Builder):
                         parced_rxn.append(m)
                     thing.rxnsParsed.append(parced_rxn)
 
-        for node in self.nodes:
-            for inter in self.nodes[node].motifs:
-                if inter[1]:
-                    for every in self.library[inter[3][0]]:
-                        if every.reaction == inter[5]:
-                            pass
+        # for node in self.nodes:
+        #     for inter in self.nodes[node].motifs:
+        #         if inter[1]:
+        #             for every in self.library[inter[3][0]]:
+        #                 if every.reaction == inter[4]:
+        #                     pass
 
     def _export(self):
 
@@ -1137,7 +1200,7 @@ class ModelBuilder(Builder):
         f.close()
 
     def _find_sites(self, interaction):
-
+        print 'interaction', interaction
         if interaction[1]:
 
             monomer_names = []
@@ -1156,7 +1219,7 @@ class ModelBuilder(Builder):
 
             # break down reaction template and add sites and states
             for every in self.library[interaction[3][0]]:
-                if every.reaction == interaction[5]:
+                if every.reaction == interaction[4]:
                     for thing in every.rxnTemplates:
                         rxn_template = thing
                         rxnTemp = re.split(r'\s*:', rxn_template)[0]
@@ -1174,17 +1237,22 @@ class ModelBuilder(Builder):
                                         if states[i] not in monomer_sites[monomer_labels.index(mol)][each]:
                                             monomer_sites[monomer_labels.index(mol)][each].append(states[i])
 
+            print
+            print monomer_names
+            print monomer_labels
+            print monomer_sites
+
             # rename the sites appropriately
             for i, each in enumerate(monomer_names):
                 for item in monomer_sites[i]:
                     if item in monomer_labels:
                         monomer_sites[i][monomer_names[monomer_labels.index(item)]] = monomer_sites[i].pop(item)
-                    s1 = item[:item.rfind('_')]
-                    s2 = item[item.rfind('_')+1:]
-                    if s1 in monomer_labels and s2 == 's':
-                        monomer_sites[i][monomer_names[monomer_labels.index(s1)]+'_s'] = monomer_sites[i].pop(item)
-                    if s1 in monomer_labels and s2.isdigit():
-                        monomer_sites[i][monomer_names[monomer_labels.index(s1)]+'_'+s2] = monomer_sites[i].pop(item)
+                    # s1 = item[:item.rfind('_')]
+                    # s2 = item[item.rfind('_')+1:]
+                    # if s1 in monomer_labels and s2 == 's':
+                    #     monomer_sites[i][monomer_names[monomer_labels.index(s1)]+'_s'] = monomer_sites[i].pop(item)
+                    # if s1 in monomer_labels and s2.isdigit():
+                    #     monomer_sites[i][monomer_names[monomer_labels.index(s1)]+'_'+s2] = monomer_sites[i].pop(item)
 
             # add sites to monomer_info
             for i, each in enumerate(monomer_names):
@@ -1278,7 +1346,7 @@ class ModelBuilder(Builder):
                     targets = interaction[1]
                     target_states = [[[], [], []] for _ in range(len(targets))]
                     for every in self.library[interaction[3][0]]:
-                        if every.reaction == interaction[5]:
+                        if every.reaction == interaction[4]:
                             for thing in every.rxnTemplates:
                                 mol_list = re.split(r'\s*>>\s*|\s*\+\s*|\s*<>\s*|\s*%\s*', thing)
                                 mol_list2 = []
@@ -1805,7 +1873,7 @@ class ModelBuilder(Builder):
                                 reactant_states[each].append(item)
 
             # turn base states into a dictionary
-            # todo: this should be done further up the chain
+            # todo: this will go away
 
             base_states = defaultdict(list)
             for each in reactant_states:
@@ -1884,8 +1952,12 @@ class ModelBuilder(Builder):
                 # quit()
 
             for interaction in self.nodes[node].motifs:
+                # print
+                # print interaction
                 if interaction[1] and interaction not in used_interactions:
+                    # print 'u1', used_interactions
                     used_interactions.append(interaction)
+                    # print 'u2', used_interactions
 
                     active_list = []
                     for reactant in interaction[0]:
@@ -1900,7 +1972,7 @@ class ModelBuilder(Builder):
                     # retrieve rxn, reaction templates, and instructions
                     current_rxn = None
                     for rxn in self.library[interaction[3][0]]:
-                        if rxn.reaction == interaction[5]:
+                        if rxn.reaction == interaction[4]:
                             current_rxn = rxn
 
                     # loop through reactions for the current interaction
@@ -1945,6 +2017,13 @@ class ModelBuilder(Builder):
                         # species from different cells. Because the substitutions relies on information
                         # from that step we must account for those identical species here.
                         # !!!!!!!!!!!!!! NEEDS SIMPLIFICATION !!!!!!!!!!!!!!!!!!!
+                        print
+                        print interaction
+                        print rxn_split_parsed
+                        # quit()
+
+                        # used_indexes = []
+                        # for i, item in enumerate(rxn_split_parsed)
 
                         for j, each in enumerate(interaction[2]):
                             for i, item in enumerate(rxn_split_parsed):
@@ -1969,8 +2048,8 @@ class ModelBuilder(Builder):
                                             rxn_split_parsed[i][1][k] = interaction[0][j] + every[every.rfind('_'):]
                         # print
                         # print node
-                        # print rxn_split_parsed
-
+                        print rxn_split_parsed
+                        # quit()
                         # add additional sites
                         for combo in active_combos:
                             rps = deepcopy(rxn_split_parsed)
@@ -2259,7 +2338,7 @@ class ModelBuilder(Builder):
                                     rule_name += item + '_'
                                 else:
                                     rule_name = rule_name[:-1]
-                            rule_name += interaction[5] + '_'
+                            rule_name += interaction[4] + '_'
                             for item in interaction[1]:
                                 if item:
                                     rule_name += item + '_'
@@ -2267,6 +2346,7 @@ class ModelBuilder(Builder):
 
                             # define monomer patterns
                             mon_pats = []
+
                             for item in rps:
                                 if item == '+' or item == '%' or item == '>>' or item == '<>':
                                     mon_pats.append(item)
@@ -2277,6 +2357,7 @@ class ModelBuilder(Builder):
                                         mon_states = {}
                                         for i, every in enumerate(item[1]):
                                             mon_states[every] = item[2][i]
+                                        # print item[0]
                                         mon_obj = self.model.monomers[item[0]]
                                         mon_pats.append(MonomerPattern(mon_obj, mon_states, None))
 
@@ -2339,7 +2420,9 @@ class ModelBuilder(Builder):
                                 self.rule(rule_name, rule_exp, self.model.parameters[forward])
 
                             n += 1
-
+                else:
+                    pass
+                    # print 'used------------------------------------'
     def _add_initials(self):
 
         for each in self.monomer_info:

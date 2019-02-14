@@ -1,0 +1,248 @@
+
+molecule: subunit
+---
+reaction:  2_complex_formation
+direction: output
+target: complex
+$$$
++++
+
+molecule: complex
+---
+reaction: 2_complex_formation
+direction: input
+reactant: subunit_1
+reactant: subunit_2
+rxnTemplate: subunit_1() + subunit_2() <> complex()
+$$$
++++
+
+molecule: flux_inducer
+---
+reaction: flux
+direction: output
+target: flux_target
+$$$
++++
+
+molecule: flux_target
+base_state: loc=er
+---
+reaction: flux
+direction: input
+reactant: flux_inducer
+rxnTemplate: flux_inducer() + flux_target(loc=er) >> flux_inducer() + flux_target(loc=cy)
+$$$
+reaction: auto_reverse_flux
+direction: self
+rxnTemplate: flux_target(loc=cy) >> flux_target(loc=er)
+$$$
++++
+
+molecule: effector
+---
+reaction: binding
+direction: output
+target: effector_target
+$$$
++++
+
+molecule: effector_target
+---
+reaction: binding
+direction: input
+reactant: effector
+rxnTemplate: effector(effector_target=None) + effector_target(effector=None) <> effector(effector_target=1) % effector_target(effector=1)
+$$$
++++
+
+molecule: synthesizer
+---
+reaction: synthesis
+direction: output
+target: synth_target
+$$$
++++
+
+molecule: synth_target
+---
+reaction: synthesis
+direction: input
+reactant: synthesizer
+rxnTemplate: synthesizer() >> synthesizer() + synth_target()
+$$$
+reaction: auto_degradation
+direction: self
+rxnTemplate: synth_target() >> None
+$$$
++++
+
+molecule: kinase
+---
+reaction: phosphorylation
+direction: output
+target: kinase_target
+$$$
+reaction: phosphorylation_r
+direction: output
+target: kinase_target_r
+$$$
++++
+
+molecule: kinase_target
+---
+reaction: phosphorylation
+direction: input
+reactant: kinase
+rxnTemplate: kinase(kinase_target=None) + kinase_target(kinase=None, p1=u) <> kinase(kinase_target=1) % kinase_target(kinase=1, p1=u)
+rxnTemplate: kinase(kinase_target=1) % kinase_target(kinase=1, p1=u) >> kinase(kinase_target=None) + kinase_target(kinase=None, p1=p)
+$$$
++++
+
+molecule: kinase_target_r
+---
+reaction: phosphorylation_r
+direction: input
+reactant: kinase
+rxnTemplate: kinase(kinase_target_r=None) + kinase_target_r(kinase=None, p1=u) <> kinase(kinase_target_r=1) % kinase_target_r(kinase=1, p1=u)
+rxnTemplate: kinase(kinase_target_r=1) % kinase_target_r(kinase=1, p1=u) >> kinase(kinase_target_r=None) + kinase_target_r(kinase=None, p1=p)
+$$$
+reaction: auto_dephosphorylation
+direction: self
+rxnTemplate: kinase_target_r(p1=p) >> kinase_target_r(p1=u)
+$$$
++++
+
+molecule: phosphatase
+---
+reaction: dephosphorylation
+direction: output
+target: phos_target
+$$$
+reaction: dephosphorylation_1r
+direction: output
+target: phos_target_1r
+$$$
+reaction: dephosphorylation_2r
+direction: output
+target: phos_target_2r
+$$$
++++
+
+molecule: phos_target
+---
+reaction: dephosphorylation
+direction: input
+reactant: phosphatase
+rxnTemplate: phosphatase(phos_target=None) + phos_target(phosphatase=None, p1=p) <> phosphatase(phos_target=1) % phos_target(phosphatase=1, p1=p)
+rxnTemplate: phosphatase(phos_target=1) % phos_target(phosphatase=1, p1=p) >> phosphatase(phos_target=None) + phos_target(phosphatase=None, p1=u)
+$$$
++++
+
+molecule: phos_target_1r
+---
+reaction: dephosphorylation_1r
+direction: input
+reactant: phosphatase
+rxnTemplate: phosphatase(phos_target_1r=None) + phos_target_1r(phosphatase=None, p1=p) <> phosphatase(phos_target_1r=1) % phos_target_1r(phosphatase=1, p1=p)
+rxnTemplate: phosphatase(phos_target_1r=1) % phos_target_1r(phosphatase=1, p1=p) >> phosphatase(phos_target_1r=None) + phos_target_1r(phosphatase=None, p1=u)
+$$$
+reaction: auto_phosphorylation
+direction: self
+rxnTemplate: phos_target_1r(p1=u) >> phos_target_1r(p1=p)
+$$$
++++
+
+molecule: phos_target_2r
+base_state: p2=p
+---
+reaction: dephosphorylation_2r
+direction: input
+reactant: phosphatase
+rxnTemplate: phosphatase(phos_target_2r=None) + phos_target_2r(phosphatase=None, p2=p) <> phosphatase(phos_target_2r=1) % phos_target_2r(phosphatase=1, p2=p)
+rxnTemplate: phosphatase(phos_target_2r=1) % phos_target_2r(phosphatase=1, p2=p) >> phosphatase(phos_target_2r=None) + phos_target_2r(phosphatase=None, p2=u)
+$$$
+reaction: auto_phosphorylation
+direction: self
+rxnTemplate: phos_target_2r(p2=u) >> phos_target_2r(p2=p)
+$$$
++++
+
+molecule: converter
+---
+reaction: conv_binding
+direction: output
+target: conv_substrate
+$$$
+reaction: conversion
+direction: output
+target: conv_target
+$$$
++++
+
+molecule: conv_substrate
+---
+reaction: conv_binding
+direction: input
+reactant: converter
+rxnTemplate: converter(conv_substrate=None) + conv_substrate(converter=None) <> converter(conv_substrate=1) % conv_substrate(converter=1)
+$$$
+reaction: conversion
+direction: output
+target: conv_target
+$$$
++++
+
+molecule: conv_target
+---
+reaction: conversion
+direction: input
+reactant: converter
+reactant: conv_substrate
+rxnTemplate: converter(conv_substrate=1) % conv_substrate(converter=1) >> converter(conv_substrate=None) + conv_target()
+rxnTemplate: conv_target() >> conv_substrate()
+$$$
++++
+
+molecule: GEF
+---
+reaction: exchange
+direction: output
+target: GTPase
+$$$
++++
+
+molecule: GTPase
+base_state: gp=d
+---
+reaction: exchange
+direction: input
+reactant: GEF
+rxnTemplate: GEF(GTPase=None) + GTPase(GEF=None, gp=d) <> GEF(GTPase=1) % GTPase(GEF=1, gp=d)
+rxnTemplate: GEF(GTPase=1) % GTPase(GEF=1, gp=d) >> GEF(GTPase=None) + GTPase(GEF=None, gp=t)
+$$$
+reaction: autoGAP
+direction: self
+rxnTemplate: GTPase(gp=t) >> GTPase(gp=d)
+$$$
++++
+
+molecule: ubiquitin
+---
+reaction: ubiquitination
+direction: output
+target: ubiquitin_target
+$$$
++++
+
+molecule: ubiquitin_target
+base_state: u_site=u
+---
+reaction: ubiquitination
+direction: input
+reactant: ubiquitin
+rxnTemplate: ubiquitin(ubiquitin_target=None) + ubiquitin_target(ubiquitin=None, u_site=u) <> ubiquitin(ubiquitin_target=1) % ubiquitin_target(ubiquitin=1, u_site=u)
+rxnTemplate: ubiquitin(ubiquitin_target=1) % ubiquitin_target(ubiquitin=1, u_site=u) >> ubiquitin(ubiquitin_target=None) + ubiquitin_target(ubiquitin=None, u_site=b)
+rxnTemplate: ubiquitin_target(u_site=b) >> ubiquitin_target(u_site=u)
+$$$
++++
