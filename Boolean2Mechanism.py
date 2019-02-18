@@ -405,8 +405,6 @@ def importLabels(labels, library, nodes):
                         if lab.strip() == 'all':
                             for item in library:
                                 nodes[each[0].strip()].labels.append(item)
-                        # print nodes[each[0].strip()].labels
-                        # quit()
 
                 if initial:
                     nodes[each[0].strip()].initial = each[1]
@@ -454,7 +452,7 @@ class MotifBuilder:
         for this in self.master[n].labels:
             for that in self.library[this]:
                 if that.direction == 'self':
-                    interacts.append([[None], [n], [None], [that.molecule], 's', that.reaction, that.instructions])
+                    interacts.append([[None], [n], [None], [that.molecule], that.reaction])
 
         return interacts
 
@@ -565,7 +563,7 @@ class MotifBuilder:
                     interact[3] = deepcopy(a_group_o[0][3])
 
                     interacts.append(interact)
-                    # print interact
+
         # # add instructions and partners
         # for i, each in enumerate(interacts):
         #     interacts[i].extend([[], []])
@@ -578,23 +576,12 @@ class MotifBuilder:
         #                 if every not in interacts[i][7]:
         #                     interacts[i][7].append(every)
 
-        # print interacts
-        # quit()
         return interacts
 
     def _findMotifs(self, targs, motif_build, interacts, in_nodes, mots):
 
-        # print self.count
-        print
-        for each in motif_build:
-            print each
-
         self.count += 1
         # todo: apply filters to partial motifs
-
-        # for each in motif_build:
-        #     print each
-        # print
 
         relax = self.nodes[motif_build[0][0][0]].relax
         working_motif = deepcopy(motif_build)
@@ -769,30 +756,6 @@ class MotifBuilder:
 
         # =======================================================================
 
-        # if working_motif[0][0][0] == 'plcga':
-        #     print
-        #     for each in working_motif:
-        #         print each
-        #
-        #     print 'depth_g', depth_g
-        #     print 'path', path
-        #     print 'reaction', reaction
-        #     print 'coverage', coverage
-        #     print 'complex_coverage', complex_coverage
-        #     print
-        #     print '------------------------------'
-        #     print
-
-        # add motif to motifs or partials
-
-        # print
-        # print depth_g
-        # print path
-        # print reaction
-        # print coverage
-        # print complex_coverage
-        # print
-
         if depth_g and path and reaction and coverage and complex_coverage:
 
             if working_motif not in mots:
@@ -906,8 +869,6 @@ class MotifBuilder:
 
         for node in self.nodes:
 
-            print node
-
             self.count = 0
             self.nodes[node].self = self._findSelfInteractions(node)
             nodelist = deepcopy(self.nodes[node].incidentNodes)
@@ -924,24 +885,13 @@ class MotifBuilder:
                         temp_nodelist.pop(j)
                         interactions += self._findInteractions(thing, temp_nodelist)
 
-                # for each in interactions:
-                #     print 'i', each
-
                 motifs = []
                 interactions = self._filter_interactions(node, interactions)
-                # print node, interactions
                 self._findMotifs(seed, seed, interactions, self.nodes[node].incidentNodes, motifs)
                 if motifs:
-                    # print 'p'
-                    # scored_motifs = []
-                    # for each in motifs:
-                    #     scored_motifs.append([self._motif_size(each), each])
-                    # scored_motifs.sort()
                     self.nodes[node].motifs.extend(motifs)
                 else:
                     self.nodes[node].motifs.extend([[[[node], None, None, None, None]]])
-
-            # quit()
 
 
 class Combine_and_Build:
@@ -958,32 +908,21 @@ class Combine_and_Build:
 
         node_list = []
         motif_list = []
-        score = 0
         for node in self.nodes:
             node_list.append(node)
             motif_list.append(self.nodes[node].motifs)
-            # score += self.nodes[node].motifs[0][0]
-
-        print
-        print node_list
-        for each in motif_list:
-            print each
-        print
 
         motif_combos = []
-        # if top == 'all':
         num_motifs = []
         for each in motif_list:
             num_motifs.append(range(len(each)))
 
         for indices in product(*num_motifs):
-            print indices
             motif = []
             for i, each in enumerate(motif_list):
                 motif.append(each[indices[i]])
             motif_combos.append(motif)
-        print motif_combos
-        # quit()
+
         # else:
         #     top_list = [[score, [0 for _ in self.nodes]]]
         #     for i in range(top-1):
@@ -1200,7 +1139,7 @@ class ModelBuilder(Builder):
         f.close()
 
     def _find_sites(self, interaction):
-        print 'interaction', interaction
+
         if interaction[1]:
 
             monomer_names = []
@@ -1237,10 +1176,11 @@ class ModelBuilder(Builder):
                                         if states[i] not in monomer_sites[monomer_labels.index(mol)][each]:
                                             monomer_sites[monomer_labels.index(mol)][each].append(states[i])
 
-            print
-            print monomer_names
-            print monomer_labels
-            print monomer_sites
+            # print
+            # print 'mn', monomer_names
+            # print 'ml', monomer_labels
+            # print 'ms', monomer_sites
+            # print
 
             # rename the sites appropriately
             for i, each in enumerate(monomer_names):
@@ -1307,7 +1247,6 @@ class ModelBuilder(Builder):
             for interaction in self.nodes[node].motifs:
                 self._find_sites(interaction)
 
-        # quit()
         # print
         # print 'MONOMER INFO'
         # for each in self.monomer_info:
@@ -1330,9 +1269,7 @@ class ModelBuilder(Builder):
                         if every in comps:
                             sites.pop(i)
                     sites.append(comp_site)
-
                 self.monomer(each, sites, self.monomer_info[each][1])
-
             else:
                 self.monomer(each, self.monomer_info[each][0], self.monomer_info[each][1])
 
@@ -1393,6 +1330,7 @@ class ModelBuilder(Builder):
         #     for item in self.action_info[each]:
         #         print each, item
         # print
+        # quit()
 
     def _add_rules(self):
 
@@ -1430,6 +1368,7 @@ class ModelBuilder(Builder):
         # for each in self.base_states:
         #     print each, self.base_states[each]
         # print
+        # quit()
 
         # create dictionary of active states based on the Boolean equations
         for each in self.monomer_info:
@@ -1611,12 +1550,13 @@ class ModelBuilder(Builder):
         #     for item in self.active_states[each]:
         #         print each, item
         # print
-        #
+
         # print 'INACTIVE STATES'
         # for each in self.inactive_states:
         #     for item in self.inactive_states[each]:
         #         print each, item
         # print
+        # quit()
 
         # create rules for self interactions
         # used_self_interactions = []
@@ -1627,7 +1567,7 @@ class ModelBuilder(Builder):
                 # retrieve current rxns and reaction templates
                 current_rxn = None
                 for rxn in self.library[interaction[3][0]]:
-                    if rxn.reaction == interaction[5]:
+                    if rxn.reaction == interaction[4]:
                         current_rxn = rxn
                 n = 0
                 for temp in current_rxn.rxnTemplates:
@@ -1729,7 +1669,7 @@ class ModelBuilder(Builder):
                         else:
                             rule_name = rule_name[:-1] + '_'
 
-                    rule_name += interaction[5]
+                    rule_name += interaction[4]
                     rule_name += '_' + str(n)
 
                     # define monomer patterns
@@ -1809,12 +1749,6 @@ class ModelBuilder(Builder):
         used_interactions = []
 
         for node in self.nodes:
-            # if node == 'pclga':
-                # print
-                # print '--------------------------------------'
-            # print
-            # print node
-            # print
 
             # initialize motif specific reactant states
             reactant_states = defaultdict(list)
@@ -2017,9 +1951,10 @@ class ModelBuilder(Builder):
                         # species from different cells. Because the substitutions relies on information
                         # from that step we must account for those identical species here.
                         # !!!!!!!!!!!!!! NEEDS SIMPLIFICATION !!!!!!!!!!!!!!!!!!!
-                        print
-                        print interaction
-                        print rxn_split_parsed
+
+                        # print
+                        # print interaction
+                        # print rxn_split_parsed
                         # quit()
 
                         # used_indexes = []
@@ -2048,7 +1983,7 @@ class ModelBuilder(Builder):
                                             rxn_split_parsed[i][1][k] = interaction[0][j] + every[every.rfind('_'):]
                         # print
                         # print node
-                        print rxn_split_parsed
+                        # print rxn_split_parsed
                         # quit()
                         # add additional sites
                         for combo in active_combos:
